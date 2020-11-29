@@ -43,6 +43,46 @@ def make_model(metrics, hp, embedding_matrix=None):
     model.compile(optimizer=keras.optimizers.Adam(lr=hp['lr']), loss=keras.losses.CategoricalCrossentropy(), metrics=metrics)
     return model
 
+def get_preds(model, seqs_padded, seqs, istest=False):
+    preds = np.argmax(model.predict(seqs_padded), axis=-1)
+    flat_preds = [p for pred in preds for p in pred]
+    print(Counter(flat_preds))
+
+    # start a new column for the model predictions
+    seqs['prediction'] = ''
+
+    # for each text: get original sequence length and trim predictions accordingly
+    # (_trim_ because we know that our seq length is longer than the longest seq in dev)
+    for i in seqs.index:
+        this_seq_length = len(seqs['token'][i])
+        seqs['prediction'][i] = preds[i][:this_seq_length].astype(int)
+
+    # print(seqs.head())
+
+    # use sequence number as the index and apply pandas explode to all other columns
+    long = seqs.set_index('sequence_num').apply(pd.Series.explode).reset_index()
+    # print(long.head())
+    # re-using the BIO integer-to-character function from last time
+    def reverse_bio(ind):
+        bio = 'O'  # for any pad=3 predictions
+        if ind==0:
+            bio = 'B'
+        elif ind==1:
+            bio = 'I'
+        elif ind==2:
+            bio = 'O'
+        return bio
+
+    if not istest: # test file doesn't have bio_only
+        bio_labs = [reverse_bio(b) for b in long['bio_only']]
+        long['bio_only'] = bio_labs
+    pred_labs = [reverse_bio(b) for b in long['prediction']]
+    long['prediction'] = pred_labs
+
+    print(long.prediction.value_counts())
+    return long
+
+
 def main(args):
     # rendering the model deterministic (hopefully)
     SEED = 42
@@ -106,7 +146,6 @@ def main(args):
     # # #     'LSTM_units': 50,
     # # #     'lr': 1e-3,}
 
-
     model = make_model(metrics=METRICS, hp=hparams)
 
     # early stopping criteria based on area under the curve: will stop if no improvement after 10 epochs
@@ -118,42 +157,49 @@ def main(args):
                                                  save_weights_only=True,
                                                  verbose=1)
 
-
     EPOCHS = args.train_epochs
     BATCH_SIZE = args.batch_size
-    print(EPOCHS, BATCH_SIZE)
-
+    
     print(model.summary())
-    results = model.evaluate(X, y, batch_size=BATCH_SIZE, verbose=0)
-    print("Loss: {:0.4f}".format(results[0])) #0.9711
+    # results = model.evaluate(X, y, batch_size=BATCH_SIZE, verbose=0)
+    # print("Loss: {:0.4f}".format(results[0])) #0.9711
 
-    # fitting the model
-    # model.fit(X, weighted_y, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks = [early_stopping, cp_callback], validation_data=(dev_X, dev_y))
-    print("Loading weights")
-    model.load_weights(args.checkpoint_dir).expect_partial() # idk why I need to have the expect_partial but error otherwise
-    results = model.evaluate(X, y, batch_size=BATCH_SIZE, verbose=0)
-    print("Loss: {:0.4f}".format(results[0])) #0.0568
+    # try:
+    #     model.load_weights(args.checkpoint_dir).expect_partial() # idk why I need to have the expect_partial but error otherwise
+    #     print('Found existing checkpoint directory, loading weights...')
+    # except:
+        # fitting the model
+    model.fit(X, weighted_y, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks = [early_stopping, cp_callback], validation_data=(dev_X, dev_y))
+
+    # results = model.evaluate(X, y, batch_size=BATCH_SIZE, verbose=0)
+    # print("Loss: {:0.4f}".format(results[0])) #0.0568
 
     # if we are evaluating on the test data, aka done with development
     # it's different because we don't have gold labels for the test so we can't evaluate our predictions
     if args.real_deal:
-        pass
+        # load back in the processed sequences
+        test_seqs = pd.read_pickle('data/tmp/test_seqs.pkl')
+
+        # get predictions on the test data
+        full_df = get_preds(model, test_X, test_seqs, istest=True)
+        full_df.to_csv(args.output_file+'_test', sep=' ', index=False, header=True)
     else:
+        # load back in the processed sequences
+        dev_seqs = pd.read_pickle('data/tmp/dev_seqs.pkl')
+
         # get predictions on the dev data
-        pass
+        full_df = get_preds(model, dev_X, dev_seqs)
+        full_df.to_csv(args.output_file, sep=' ', index=False, header=True)
     # get predictions on data, if real-deal flag is passed, it will evaluate on the test data and not run the evaluate script (it will be blind submission)
     # if not real deal, it will get preds on dev data and in bash will get passed to evaluate script
-
     # this file outputs a file called predictions.txt that will be passed to evaluate.py
     
 if __name__ == '__main__':
     p = ap.ArgumentParser()
-    # p.add_argument('mode', type=str, choices=['fit', 'predict'])
     p.add_argument('--train-data-path', type=str)
     p.add_argument('--dev-data-path', type=str)
     p.add_argument('--test-data-path', type=str)
     p.add_argument('--token-vocab', type=str)
-    # p.add_argument('--model', default=None, type=str)
     p.add_argument('--hparams-path', default=None, type=str)
     p.add_argument('--label-map-path', type=str, default=None)
     p.add_argument('--output-file', type=str, default='predictions.txt')

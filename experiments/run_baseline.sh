@@ -19,7 +19,7 @@ fi
 
 # only run this if .npy files don't exist
 # arbitrarily choosing train.seqs as the check
-if [ -f "${OUTPUT_DIR}/train.pkl" ]; then
+if [ -f "${OUTPUT_DIR}/train.pkl" ] && [ -f "${DATA_DIR}/tmp/train_seqs.pkl" ]; then
     echo "Using existing processed data files..."
 else
     echo "No existing data files found, preprocessing now..."
@@ -36,13 +36,12 @@ python train.py \
                 --batch-size 32 \
                 --checkpoint-dir ${CHECKPOINT_DIR}/baseline.ckpt \
                 --hparams-path ${OUTPUT_DIR}/hparams.json \
-                --output-file ${OUTPUT_DIR}/predictins.txt \
-                --real-deal
+                --output-file ${OUTPUT_DIR}/predictions.txt \
+                #--real-deal
     
-        
- 
+
 # python train.py predict BUT ON TEST DATA, and direct it to the results dir for final eval, not the corresponding exp folder.
-# python evaluate < predictions.txt > eval.txt
+python evaluate.py ${OUTPUT_DIR}/predictions.txt > ${OUTPUT_DIR}/eval.txt
 
 
 

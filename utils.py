@@ -139,46 +139,5 @@ def pad(seqs, sequence_len, token_pad, label_pad, istest=False):
 
 
 
-def eval_model(model, seqs_padded, seqs):
-    preds = np.argmax(model.predict(seqs_padded), axis=-1)
-    flat_preds = [p for pred in preds for p in pred]
-    print(Counter(flat_preds))
-
-    # start a new column for the model predictions
-    seqs['prediction'] = ''
-
-    # for each text: get original sequence length and trim predictions accordingly
-    # (_trim_ because we know that our seq length is longer than the longest seq in dev)
-    for i in seqs.index:
-        this_seq_length = len(seqs['token'][i])
-        seqs['prediction'][i] = preds[i][:this_seq_length].astype(int)
-
-    print(seqs.head())
-
-    # use sequence number as the index and apply pandas explode to all other columns
-    long = seqs.set_index('sequence_num').apply(pd.Series.explode).reset_index()
-    print(long.head())
-
-    bio_labs = [reverse_bio(b) for b in long['bio_only']]
-    long['bio_only'] = bio_labs
-    pred_labs = [reverse_bio(b) for b in long['prediction']]
-    long['prediction'] = pred_labs
-
-    long.head()
-    print(long.prediction.value_counts())
-    return long
-
-
-# re-using the BIO integer-to-character function from last time
-def reverse_bio(ind):
-    bio = 'O'  # for any pad=3 predictions
-    if ind==0:
-        bio = 'B'
-    elif ind==1:
-        bio = 'I'
-    elif ind==2:
-        bio = 'O'
-    return bio
-
 
  

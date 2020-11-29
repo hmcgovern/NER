@@ -1,7 +1,13 @@
 import argparse as ap
+import pandas as pd
 
-def main(txt):
+def main(path):
     '''row by row entity evaluation: we evaluate by whole named entities'''
+    
+    txt = pd.read_csv(path, sep=' ', skiprows=1, names=['sequence_num', 'token', 'bio_only', 'token_indices', 'prediction'])
+    # print(txt.head())
+    # print(txt['prediction'][19:26])
+    # exit()
     tp = 0; fp = 0; fn = 0
     in_entity = 0
     for i in txt.index:
@@ -48,8 +54,9 @@ def main(txt):
 if __name__ == "__main__":
     
     p = ap.ArgumentParser()
-    p.add_argument('preds', required=True, \
+    p.add_argument('preds_path', \
         help='txt file of predictions to evaluate')
     args = p.parse_args()
     
-    main(args.preds)
+    
+    main(args.preds_path)

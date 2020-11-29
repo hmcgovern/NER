@@ -29,13 +29,17 @@ def main(args):
 
     # TODO: this will depend on whether or not it needs to be cleaned
     # for now just using pkls for development to save time
-    # train_seqs = utils.tokens2sequences(train_copy)
-    # dev_seqs = utils.tokens2sequences(dev_copy)
-    # test_seqs = utils.tokens2sequences(test_copy, istest=True)
+    train_seqs = utils.tokens2sequences(train_copy)
+    dev_seqs = utils.tokens2sequences(dev_copy)
+    test_seqs = utils.tokens2sequences(test_copy, istest=True)
+    
+    train_seqs.to_pickle(args.data_dir+'/tmp/train_seqs.pkl')
+    dev_seqs.to_pickle(args.data_dir+'/tmp/dev_seqs.pkl')
+    test_seqs.to_pickle(args.data_dir+'/tmp/test_seqs.pkl')
 
-    train_seqs = pd.read_pickle(args.data_dir+'/tmp/train_seqs.pkl')
-    dev_seqs = pd.read_pickle(args.data_dir+'/tmp/dev_seqs.pkl')
-    test_seqs = pd.read_pickle(args.data_dir+'/tmp/test_seqs.pkl')
+    # train_seqs = pd.read_pickle(args.data_dir+'/tmp/train_seqs.pkl')
+    # dev_seqs = pd.read_pickle(args.data_dir+'/tmp/dev_seqs.pkl')
+    # test_seqs = pd.read_pickle(args.data_dir+'/tmp/test_seqs.pkl')
 
     # take the longest sequence and make it the sequence length
     seq_length = utils.find_seq_len(train_seqs, dev_seqs, test_seqs)
