@@ -24,7 +24,7 @@ def get_initial_bias(padded_labels):
     return initial_bias
 
 
-def downweight(onehot_weights, class_wts=[1,1,0.1,0.1]):
+def downweight(onehot_weights, class_wts):
     # use deep copy to ensure we aren't updating original values
 
     onehot_weights = copy.deepcopy(onehot_weights)
@@ -77,8 +77,8 @@ def extract_features(txt_orig, istest=False, scrub=False):
     token_vocab = txt.token.unique().tolist()
     oov = len(token_vocab)  # OOV (out of vocabulary) token as vocab length (because that's max.index + 1)
     
-    if scrub:
-        txt = clean_text(txt)
+    # if scrub:
+    #     txt = clean_text(txt)
     tokinds = [token_index(u, token_vocab, oov) for u in txt['token']]
     txt['token_indices'] = tokinds
     if not istest:  # can't do this with the test set
@@ -126,7 +126,8 @@ def pad(seqs, sequence_len, token_pad, label_pad, istest=False):
                                 padding='post', 
                                 truncating='post', 
                                 value=token_pad)
-    if not istest:
+    if istest==False:
+        # print("SEQUENCES AND LABELS")
         pad_labs = pad_sequences(seqs['bio_only'].tolist(), 
                                     maxlen=sequence_len,
                                     dtype='int32', 
@@ -135,6 +136,7 @@ def pad(seqs, sequence_len, token_pad, label_pad, istest=False):
                                     value=label_pad)
         return pad_seqs, pad_labs
     else:
+        # print("ONLY SEQUENCES NOT LABELS")
         return pad_seqs
 
 

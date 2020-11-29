@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import argparse as ap
 import pickle
+import os
 
 # 3rd party
 from keras.utils import to_categorical
@@ -33,13 +34,13 @@ def main(args):
     dev_seqs = utils.tokens2sequences(dev_copy)
     test_seqs = utils.tokens2sequences(test_copy, istest=True)
     
-    train_seqs.to_pickle(args.data_dir+'/tmp/train_seqs.pkl')
-    dev_seqs.to_pickle(args.data_dir+'/tmp/dev_seqs.pkl')
-    test_seqs.to_pickle(args.data_dir+'/tmp/test_seqs.pkl')
+    train_seqs.to_pickle(args.data_dir+'/seqs/train_seqs.pkl')
+    dev_seqs.to_pickle(args.data_dir+'/seqs/dev_seqs.pkl')
+    test_seqs.to_pickle(args.data_dir+'/seqs/test_seqs.pkl')
 
-    # train_seqs = pd.read_pickle(args.data_dir+'/tmp/train_seqs.pkl')
-    # dev_seqs = pd.read_pickle(args.data_dir+'/tmp/dev_seqs.pkl')
-    # test_seqs = pd.read_pickle(args.data_dir+'/tmp/test_seqs.pkl')
+    # train_seqs = pd.read_pickle(args.data_dir+'/seqs/train_seqs.pkl')
+    # dev_seqs = pd.read_pickle(args.data_dir+'/seqs/dev_seqs.pkl')
+    # test_seqs = pd.read_pickle(args.data_dir+'/seqs/test_seqs.pkl')
 
     # take the longest sequence and make it the sequence length
     seq_length = utils.find_seq_len(train_seqs, dev_seqs, test_seqs)
@@ -47,7 +48,7 @@ def main(args):
     token_vocab = train.token.unique().tolist()
     oov = len(token_vocab)  # OOV (out of vocabulary) token as vocab length (because that's max.index + 1)
     
-    with open(args.output_dir + 'token_vocab.pkl', 'wb') as f:
+    with open(args.data_dir + '/token_vocab.pkl', 'wb') as f:
         pickle.dump(token_vocab, f)
 
     # a new dummy token index, one more than OOV
@@ -80,11 +81,11 @@ def main(args):
     test_pkl = {'test_X': test_X, 'test_y': None}
 
     ############### writing to file ################
-    with open(args.output_dir+'train.pkl', 'wb') as f:
+    with open(args.data_dir+'/padded/train.pkl', 'wb') as f:
         pickle.dump(train_pkl, f)
-    with open(args.output_dir+'dev.pkl', 'wb') as f:
+    with open(args.data_dir+'/padded/dev.pkl', 'wb') as f:
         pickle.dump(dev_pkl, f)
-    with open(args.output_dir+'test.pkl', 'wb') as f:
+    with open(args.data_dir+'/padded/test.pkl', 'wb') as f:
         pickle.dump(test_pkl, f)
 
 if __name__ == "__main__":
@@ -93,8 +94,6 @@ if __name__ == "__main__":
 
     p.add_argument('--output-dir', required=True, \
         help='output directory for label list, word files, and pickles')
-    # p.add_argument('--vocab_pkl', \
-    #     help='pickle file of fasttext embeddings of vocab in dataset')
     p.add_argument('--data-dir', required=True, \
         help='current model\'s location (generated from a bash script using Job ID)')
     p.add_argument('--clean', action='store_true', \

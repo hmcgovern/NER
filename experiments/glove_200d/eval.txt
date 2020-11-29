@@ -1,0 +1,4 @@
+Sum of TP and FP = 4907
+Sum of TP and FN = 602
+True positives = 127, False positives = 4780, False negatives = 475
+Precision = 0.026, Recall = 0.211, F1 = 0.046 (max=1)

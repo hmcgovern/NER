@@ -19,24 +19,25 @@ fi
 
 # only run this if .npy files don't exist
 # arbitrarily choosing train.seqs as the check
-if [ -f "${OUTPUT_DIR}/train.pkl" ] && [ -f "${DATA_DIR}/tmp/train_seqs.pkl" ]; then
+if [ -f "${DATA_DIR}/padded/train.pkl" ] && [ -f "${DATA_DIR}/seqs/train_seqs.pkl" ]; then
     echo "Using existing processed data files..."
 else
     echo "No existing data files found, preprocessing now..."
-    echo "Input data and labels will be saved in ${DATA_DIR}"
+    echo "Input data and labels will be saved in ${DATA_DIR}/tmp"
     python preprocess.py --output-dir ${OUTPUT_DIR} --data-dir ${DATA_DIR}
 fi
   
 python train.py \
-                --train-data-path ${OUTPUT_DIR}/train.pkl \
-                --dev-data-path ${OUTPUT_DIR}/dev.pkl \
-                --test-data-path ${OUTPUT_DIR}/test.pkl \
-                --token-vocab ${OUTPUT_DIR}/token_vocab.pkl \
+                --train-data-path ${DATA_DIR}/padded/train.pkl \
+                --dev-data-path ${DATA_DIR}/padded/dev.pkl \
+                --test-data-path ${DATA_DIR}/padded/test.pkl \
+                --token-vocab ${DATA_DIR}/token_vocab.pkl \
                 --train-epochs 2 \
                 --batch-size 32 \
                 --checkpoint-dir ${CHECKPOINT_DIR}/baseline.ckpt \
                 --hparams-path ${OUTPUT_DIR}/hparams.json \
                 --output-file ${OUTPUT_DIR}/predictions.txt \
+                --overwrite
                 #--real-deal
     
 

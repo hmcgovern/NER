@@ -9,22 +9,21 @@ import random
 import pickle
 import json
 
+
 from collections import Counter
 
 import utils
 
-# TODO: change this so the embedding matrix doens't have to be passed in, but do that with Mittens
-def make_model(metrics, hp, embedding_matrix=None):
-    # TODO: don't hardcode this 
-    n_labs = 4
+
+def make_model(metrics, hp):
+    n_labs = hp["n_labs"] # ==> 4
     if hp['output_bias'] is not None:
         hp['output_bias'] = tf.keras.initializers.Constant(hp['output_bias'])
-    if hp['glove_embedding_dim'] is not None:
+    if type(hp['glove_embedding_dim']) == int:
         embed = keras.layers.Embedding(
                 input_dim=hp['vocab_size'],
                 output_dim=hp['glove_embedding_dim'],
-                # TODO: factor out this embedding_matrix
-                embeddings_initializer=keras.initializers.Constant(embedding_matrix),
+                embeddings_initializer=keras.initializers.Constant(hp['embedding_matrix']),
                 trainable=False)
     else:
         embed = keras.layers.Embedding(
@@ -111,20 +110,10 @@ def main(args):
         data = pickle.load(f)
         test_X = data['test_X']
 
-    # X = np.load(args.train_seqs_path)   
-    # y = np.load(args.train_labs_path) 
-
     # remember to downweight the labels according to the hp
-    weighted_y = utils.downweight(y, hparams['class_weights'])
+    weighted_y = utils.downweight(y, class_wts=hparams['class_weights'])
 
-    # test_X = np.load(args.test_seqs_path)  
-    # test_y = np.load(args.test_labs_path) 
 
-    # # # with open(args.token_vocab, 'rb') as f:
-    # # #     token_vocab = pickle.load(f)
-
-    # # # seq_len = X.shape[1]
-    
     # some evaluation metrics
     METRICS = [
         keras.metrics.TruePositives(name='tp'),
@@ -137,40 +126,78 @@ def main(args):
         keras.metrics.AUC(name='auc'),
     ]
 
-    # # # HP = {'output_bias': [0.005542151675485009, 0.0033213403880070548, 0.1667583774250441, 0.8243781305114638],
-    # # #     'glove_embedding_dim': None,
-    # # #     'class_weights': [1,1,0.1,0.1],
-    # # #     'vocab_size': len(token_vocab)+2,
-    # # #     'embed_size': 128,
-    # # #     'seq_length': seq_len, 
-    # # #     'LSTM_units': 50,
-    # # #     'lr': 1e-3,}
+    ############## adding GloVe pre-trained embeddings ################
+    if hparams['glove_embedding_dim'] is not None:
+        with open(args.token_vocab, 'rb') as f:
+            token_vocab = pickle.load(f)
+        vocab_size = hparams["vocab_size"]
+
+        path_to_glove_file = os.path.join(args.glove_path, 'glove.6B.'+str(hparams['glove_embedding_dim'])+'d.txt')
+
+        embeddings_index = {}
+        with open(path_to_glove_file) as f:
+            for line in f:
+                word, coefs = line.split(maxsplit=1)
+                coefs = np.fromstring(coefs, "f", sep=" ")
+                embeddings_index[word] = coefs
+
+        print("Found %s word vectors." % len(embeddings_index))
+
+        word_index = dict(enumerate(token_vocab))
+        embedding_dim = hparams['glove_embedding_dim']
+        hits = 0
+        misses = 0
+
+        # Prepare embedding matrix
+        embedding_matrix = np.zeros((vocab_size, embedding_dim))
+        for i, word in word_index.items():
+            # without lowercasing: Converted 5389 words (9412 misses)
+            # with lowercasing: Converted 9565 words (5236 misses)
+            try:
+                word = str(np.char.lower(word))
+            except:
+                print(word)
+            embedding_vector = embeddings_index.get(word)
+            if embedding_vector is not None:
+                # Words not found in embedding index will be all-zeros.
+                # This includes the representation for "padding" and "OOV"
+                embedding_matrix[i] = embedding_vector
+                hits += 1
+            else:
+                misses += 1
+        print("Converted %d words (%d misses)" % (hits, misses))
+
+        # now add these to the hparams, overwriting embed dim and adding one for embedding matrix
+        hparams["embedding_matrix"] = embedding_matrix
+
 
     model = make_model(metrics=METRICS, hp=hparams)
 
     # early stopping criteria based on area under the curve: will stop if no improvement after 10 epochs
-    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_auc', verbose=1, patience=10, \
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_auc', verbose=3, patience=10, \
         mode='max', restore_best_weights=True)
 
     # Create a callback that saves the model's weights
     cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=args.checkpoint_dir,
                                                  save_weights_only=True,
-                                                 verbose=1)
+                                                 verbose=3)
 
-    EPOCHS = args.train_epochs
-    BATCH_SIZE = args.batch_size
+    EPOCHS = hparams["epochs"]
+    BATCH_SIZE = hparams["batch_size"]
     
     print(model.summary())
     # results = model.evaluate(X, y, batch_size=BATCH_SIZE, verbose=0)
     # print("Loss: {:0.4f}".format(results[0])) #0.9711
 
-    # try:
-    #     model.load_weights(args.checkpoint_dir).expect_partial() # idk why I need to have the expect_partial but error otherwise
-    #     print('Found existing checkpoint directory, loading weights...')
-    # except:
-        # fitting the model
-    model.fit(X, weighted_y, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks = [early_stopping, cp_callback], validation_data=(dev_X, dev_y))
-
+    if not args.overwrite:
+        try:
+            model.load_weights(args.checkpoint_dir).expect_partial() # idk why I need to have the expect_partial but error otherwise
+            print('Found existing checkpoint directory, loading weights...')
+        except:
+            # fitting the model
+            model.fit(X, weighted_y, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks = [early_stopping, cp_callback], validation_data=(dev_X, dev_y), verbose=3)
+    else:
+        model.fit(X, weighted_y, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks = [early_stopping, cp_callback], validation_data=(dev_X, dev_y))
     # results = model.evaluate(X, y, batch_size=BATCH_SIZE, verbose=0)
     # print("Loss: {:0.4f}".format(results[0])) #0.0568
 
@@ -178,14 +205,14 @@ def main(args):
     # it's different because we don't have gold labels for the test so we can't evaluate our predictions
     if args.real_deal:
         # load back in the processed sequences
-        test_seqs = pd.read_pickle('data/tmp/test_seqs.pkl')
+        test_seqs = pd.read_pickle('data/seqs/test_seqs.pkl')
 
         # get predictions on the test data
         full_df = get_preds(model, test_X, test_seqs, istest=True)
         full_df.to_csv(args.output_file+'_test', sep=' ', index=False, header=True)
     else:
         # load back in the processed sequences
-        dev_seqs = pd.read_pickle('data/tmp/dev_seqs.pkl')
+        dev_seqs = pd.read_pickle('data/seqs/dev_seqs.pkl')
 
         # get predictions on the dev data
         full_df = get_preds(model, dev_X, dev_seqs)
@@ -202,11 +229,13 @@ if __name__ == '__main__':
     p.add_argument('--token-vocab', type=str)
     p.add_argument('--hparams-path', default=None, type=str)
     p.add_argument('--label-map-path', type=str, default=None)
+    p.add_argument('--glove-path', type=str, default=None)
     p.add_argument('--output-file', type=str, default='predictions.txt')
-    p.add_argument('--train-epochs', default=100, type=int)
-    p.add_argument('--batch-size', type=int, default=32)
+    # p.add_argument('--train-epochs', default=100, type=int)
+    # p.add_argument('--batch-size', type=int, default=32)
     p.add_argument('--checkpoint-dir', type=str, default=None)
     p.add_argument('--real-deal', action='store_true', help='if predicting on test data')
+    p.add_argument('--overwrite', action='store_true', help='to overwrite checkpoint dirs')
 
     args = p.parse_args()
     # TODO: write this to a text file somewhere just to have on hand

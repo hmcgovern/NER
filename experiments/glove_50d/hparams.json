@@ -1,0 +1,23 @@
+{
+    "output_bias": [
+        0.005542151675485009, 
+        0.0033213403880070548, 
+        0.1667583774250441, 
+        0.8243781305114638
+    ],
+    "n_labs": 4,
+    "glove_embedding_dim": 50,
+    "class_weights": [
+        1,
+        1,
+        0.01,
+        0.01
+    ],
+    "vocab_size": 14803,
+    "embed_size": 128,
+    "seq_length": 105,
+    "LSTM_units": 50,
+    "lr": 0.001,
+    "epochs": 100,
+    "batch_size": 32
+}
